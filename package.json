@@ -1,0 +1,69 @@
+{
+  "name": "env-example-generator",
+  "displayName": ".env.example-generator",
+  "description": "A Visual Studio Code extension that automatically generates .env.example files based on existing .env files in your workspace. Simplify your development process by ensuring consistent environment variable configurations across your projects. Additionally, it automatically generates .gitignore files to exclude sensitive environment files from version control.",
+  "keywords": [
+    "vscode",
+    "extension",
+    ".env",
+    ".env.example",
+    ".env.example generator",
+    ".gitignore",
+    ".gitignore generator",
+    "generator",
+    "environment",
+    "configuration",
+    "development",
+    "workspace",
+    "automate",
+    "automatic",
+    "environment variables",
+    "development environment",
+    "version control",
+    "sensitive data",
+    "security"
+  ],
+  "version": "1.0.0",
+  "publisher": "manaskpradhan",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Other",
+    "Extension Packs",
+    "SCM Providers",
+    "Testing",
+    "Visualization"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "env-example-generator",
+        "title": ".env.example Generator"
+      }
+    ]
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "yarn run lint",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.88.0",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "eslint": "^8.57.0",
+    "typescript": "^5.3.3",
+    "@vscode/test-cli": "^0.0.8",
+    "@vscode/test-electron": "^2.3.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pkmanas22/.env.example-generator-extension.git"
+  },
+  "license": "MIT"
+}
