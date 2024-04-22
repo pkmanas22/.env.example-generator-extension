@@ -1,6 +1,8 @@
-# .env-example-generator
+<h1 align="center">.env.example-generator</h1>
 
-.env.example generator - A Visual Studio Code extension
+### BY [Manas Kumar Pradhan](https://twitter.com/pkmanas22)
+
+### .env.example generator - A Visual Studio Code extension
 
 ## Description
 
