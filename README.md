@@ -4,6 +4,7 @@
 
 ### .env.example generator - A Visual Studio Code extension
 
+![Usage](images/usage.gif)
 ## Description
 
 `env-example-generator` is a Visual Studio Code extension that automatically generates `.env.example` files based on existing `.env` files in your workspace. Simplify your development process by ensuring consistent environment variable configurations across your projects. Additionally, it automatically generates `.gitignore` files to exclude sensitive environment files from version control.
