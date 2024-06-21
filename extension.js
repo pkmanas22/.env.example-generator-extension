@@ -24,9 +24,11 @@ async function updateEnvExample(envFilePath, envExampleFilePath) {
 			.map(line => {
 				if (line.startsWith('#')) {
 					return line;
+				} else if (!line) {
+					return line;
 				} else {
 					const [key] = line.split('=');
-					return `${key}=""`;
+					return `${key}="REPLACE_YOUR_${key}"`;
 				}
 			})
 			.join('\n');

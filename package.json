@@ -8,8 +8,13 @@
     ".env",
     ".env.example",
     ".env.example generator",
+    "env",
+    "env.example",
+    "env.example generator",
     ".gitignore",
     ".gitignore generator",
+    "gitignore",
+    "gitignore generator",
     "generator",
     "environment",
     "configuration",
@@ -23,7 +28,7 @@
     "sensitive data",
     "security"
   ],
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "manaskpradhan",
   "engines": {
     "vscode": "^1.88.0"
