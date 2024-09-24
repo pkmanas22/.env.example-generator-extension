@@ -3,11 +3,11 @@ const fs = require('fs').promises;
 const path = require('path');
 
 async function showProcessingToast(message) {
-	vscode.window.withProgress({
+	await vscode.window.withProgress({
 		location: vscode.ProgressLocation.Notification,
 		title: message,
 		cancellable: false
-	}, async (progress) => {
+	}, async () => {
 		await new Promise(resolve => setTimeout(resolve)); // Simulating processing time
 	});
 }
@@ -96,39 +96,47 @@ async function generateGitignore(workspacePath) {
 
 async function activate(context) {
 
-	// Function to generate and update .env.example file
-	async function generateEnvExample(envFilePath) {
-		const envFileDir = path.dirname(envFilePath);
-		const envExampleFilePath = path.join(envFileDir, '.env.example');
-		await updateEnvExample(envFilePath, envExampleFilePath);
-	}
+    // Function to generate and update .env.example file
+    async function generateEnvExample(envFilePath) {
+        const envFileDir = path.dirname(envFilePath);
+        const envExampleFilePath = path.join(envFileDir, '.env.example');
+        await updateEnvExample(envFilePath, envExampleFilePath);
+    }
 
-	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(async (e) => {
-		const doc = e.document;
-		if (doc.fileName.endsWith('.env')) {
-			const uri = vscode.Uri.file(doc.fileName);
-			await generateEnvExample(uri.fsPath);
-			await generateGitignore(workspaceFolders[0].uri.fsPath);
-		}
-	}));
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(async (e) => {
+        const doc = e.document;
+        if (doc.fileName.endsWith('.env')) {
+            const uri = vscode.Uri.file(doc.fileName);
+            await generateEnvExample(uri.fsPath);
 
-	// Generate .env.example files for existing .env files in the workspace
-	const workspaceFolders = vscode.workspace.workspaceFolders;
-	if (workspaceFolders) {
-		for (const folder of workspaceFolders) {
-			const envFilePaths = await findEnvFiles(folder.uri.fsPath);
-			for (const envFilePath of envFilePaths) {
-				const envFileDir = path.dirname(envFilePath);
-				const envExampleFilePath = path.join(envFileDir, '.env.example');
-				await updateEnvExample(envFilePath, envExampleFilePath);
-			}
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (workspaceFolders && workspaceFolders.length > 0) {
+                await generateGitignore(workspaceFolders[0].uri.fsPath);
+            }
+        }
+    }));
 
-			// Generate .gitignore file in root workspace if it doesn't exist
-			await generateGitignore(folder.uri.fsPath);
-		}
-	}
+    // Generate .env.example files for existing .env files in the workspace
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (workspaceFolders) {
+        for (const folder of workspaceFolders) {
+            const envFilePaths = await findEnvFiles(folder.uri.fsPath);
 
-	console.log("Extension activated successfully.");
+            // Only proceed if at least one .env file exists
+            if (envFilePaths.length > 0) {
+                for (const envFilePath of envFilePaths) {
+                    const envFileDir = path.dirname(envFilePath);
+                    const envExampleFilePath = path.join(envFileDir, '.env.example');
+                    await updateEnvExample(envFilePath, envExampleFilePath);
+                }
+
+                // Generate .gitignore file in root workspace
+                await generateGitignore(folder.uri.fsPath);
+            }
+        }
+    }
+
+    console.log("Extension activated successfully.");
 }
 
 function deactivate() {
