@@ -28,7 +28,7 @@ async function updateEnvExample(envFilePath, envExampleFilePath) {
 					return line;
 				} else {
 					const [key] = line.split('=');
-					return `${key}="" 			# Give your own value of ${key}`;
+					return `${key}="" 			# Give your own value for ${key}`;
 				}
 			})
 			.join('\n');
