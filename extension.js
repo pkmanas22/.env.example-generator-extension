@@ -2,14 +2,23 @@ const vscode = require('vscode');
 const fs = require('fs').promises;
 const path = require('path');
 
+const permissionCache = new Set(); // Tracks permissions for specific .env files
+const debounceTimers = new Map(); // Tracks debounce timers for each file
+const processingFiles = new Set(); // Tracks files currently being processed
+
+const DEBOUNCE_DELAY = 4000; // Delay in milliseconds (4 seconds)
+
 async function showProcessingToast(message) {
-	await vscode.window.withProgress({
-		location: vscode.ProgressLocation.Notification,
-		title: message,
-		cancellable: false
-	}, async () => {
-		await new Promise(resolve => setTimeout(resolve)); // Simulating processing time
-	});
+	await vscode.window.withProgress(
+		{
+			location: vscode.ProgressLocation.Notification,
+			title: message,
+			cancellable: false,
+		},
+		async () => {
+			await new Promise((resolve) => setTimeout(resolve)); // Simulate processing time
+		}
+	);
 }
 
 async function showSuccessToast(message) {
@@ -18,17 +27,21 @@ async function showSuccessToast(message) {
 
 async function updateEnvExample(envFilePath, envExampleFilePath) {
 	try {
+		const config = vscode.workspace.getConfiguration('envExample');
+		const includeComments = config.get('includeComments', true); // Default to true if not set
+
 		const data = await fs.readFile(envFilePath, 'utf8');
-		const envData = data.split('\n')
-			.map(line => line.trim())
-			.map(line => {
-				if (line.startsWith('#')) {
-					return line;
-				} else if (!line) {
+		const envData = data
+			.split('\n')
+			.map((line) => line.trim())
+			.map((line) => {
+				if (line.startsWith('#') || !line) {
 					return line;
 				} else {
 					const [key] = line.split('=');
-					return `${key}="" 			# Give your own value for ${key}`;
+					return includeComments
+						? `${key}="" 				# Provide a value for ${key}`
+						: `${key}=""`;
 				}
 			})
 			.join('\n');
@@ -41,38 +54,16 @@ async function updateEnvExample(envFilePath, envExampleFilePath) {
 	}
 }
 
-async function findEnvFiles(dir) {
-	let envFiles = [];
-	try {
-		const files = await fs.readdir(dir);
-		for (const file of files) {
-			const filePath = path.join(dir, file);
-			const stat = await fs.stat(filePath);
-			if (stat.isDirectory()) {
-				const subEnvFiles = await findEnvFiles(filePath);
-				envFiles = envFiles.concat(subEnvFiles);
-			} else if (file === '.env') {
-				envFiles.push(filePath);
-			}
-		}
-		return envFiles;
-	} catch (err) {
-		console.error(`Error finding .env files: ${err.message}`);
-		return [];
-	}
-}
-
 async function generateGitignore(workspacePath) {
 	const gitignorePath = path.join(workspacePath, '.gitignore');
-	const message = `# Environment configuration\n**/.env\n`;
+	const message = `# Environment configuration\n**/.env\n\n# VS Code Configuration\n**/.vscode/\n`;
 
 	try {
 		let gitignoreContent = '';
-		// Check if .gitignore file already exists
+
 		try {
 			gitignoreContent = await fs.readFile(gitignorePath, 'utf-8');
 		} catch (err) {
-			// .gitignore file doesn't exist, create it with the message
 			if (err.code === 'ENOENT') {
 				await fs.writeFile(gitignorePath, message);
 				console.log('.gitignore file created successfully.');
@@ -81,8 +72,7 @@ async function generateGitignore(workspacePath) {
 			throw err;
 		}
 
-		// Append the message to .gitignore content if not already present
-		if (!gitignoreContent.includes(message)) {
+		if (!gitignoreContent.includes('.env')) {
 			gitignoreContent += message;
 			await fs.writeFile(gitignorePath, gitignoreContent);
 			console.log('Message appended to .gitignore file.');
@@ -94,56 +84,89 @@ async function generateGitignore(workspacePath) {
 	}
 }
 
+async function requestPermission(filePath) {
+	if (permissionCache.has(filePath)) {
+		return true; // Skip prompt if permission already granted for this file
+	}
+
+	const userResponse = await vscode.window.showWarningMessage(
+		`Do you want to create or update the .env.example and .gitignore files for ${path.basename(filePath)}? You can always do this later, after completing your .env file.`,
+		{ modal: true },
+		'Yes',
+		'No'
+	);
+
+	if (userResponse === 'Yes') {
+		permissionCache.add(filePath); // Cache the permission for this file
+		return true;
+	}
+
+	return false;
+}
+
+async function handleEnvChange(filePath) {
+	if (processingFiles.has(filePath)) {
+		return; // Skip if already processing
+	}
+
+	processingFiles.add(filePath);
+
+	if (await requestPermission(filePath)) {
+		const envExamplePath = path.join(path.dirname(filePath), '.env.example');
+		await updateEnvExample(filePath, envExamplePath);
+
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (workspaceFolders && workspaceFolders.length > 0) {
+			await generateGitignore(workspaceFolders[0].uri.fsPath);
+		}
+	}
+
+	processingFiles.delete(filePath);
+}
+
+async function toggleIncludeCommentsSetting() {
+	const config = vscode.workspace.getConfiguration('envExample');
+	const currentValue = config.get('includeComments', true);
+	await config.update('includeComments', !currentValue, vscode.ConfigurationTarget.Workspace);
+	vscode.window.showInformationMessage(
+		`Include comments in .env.example: ${!currentValue ? 'Enabled' : 'Disabled'}`
+	);
+}
+
 async function activate(context) {
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeTextDocument((e) => {
+			const doc = e.document;
+			if (doc.fileName.endsWith('.env')) {
+				const filePath = doc.fileName;
 
-    // Function to generate and update .env.example file
-    async function generateEnvExample(envFilePath) {
-        const envFileDir = path.dirname(envFilePath);
-        const envExampleFilePath = path.join(envFileDir, '.env.example');
-        await updateEnvExample(envFilePath, envExampleFilePath);
-    }
+				// Clear existing debounce timer
+				if (debounceTimers.has(filePath)) {
+					clearTimeout(debounceTimers.get(filePath));
+				}
 
-    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(async (e) => {
-        const doc = e.document;
-        if (doc.fileName.endsWith('.env')) {
-            const uri = vscode.Uri.file(doc.fileName);
-            await generateEnvExample(uri.fsPath);
+				// Set a new debounce timer
+				const timer = setTimeout(() => {
+					handleEnvChange(filePath).catch((err) => {
+						console.error(`Error handling .env change: ${err.message}`);
+					});
+				}, DEBOUNCE_DELAY);
 
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (workspaceFolders && workspaceFolders.length > 0) {
-                await generateGitignore(workspaceFolders[0].uri.fsPath);
-            }
-        }
-    }));
+				debounceTimers.set(filePath, timer);
+			}
+		}),
+		vscode.commands.registerCommand('envExample.toggleComments', toggleIncludeCommentsSetting)
+	);
 
-    // Generate .env.example files for existing .env files in the workspace
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (workspaceFolders) {
-        for (const folder of workspaceFolders) {
-            const envFilePaths = await findEnvFiles(folder.uri.fsPath);
-
-            // Only proceed if at least one .env file exists
-            if (envFilePaths.length > 0) {
-                for (const envFilePath of envFilePaths) {
-                    const envFileDir = path.dirname(envFilePath);
-                    const envExampleFilePath = path.join(envFileDir, '.env.example');
-                    await updateEnvExample(envFilePath, envExampleFilePath);
-                }
-
-                // Generate .gitignore file in root workspace
-                await generateGitignore(folder.uri.fsPath);
-            }
-        }
-    }
-
-    console.log("Extension activated successfully.");
+	console.log('Extension activated successfully.');
 }
 
 function deactivate() {
-	console.log("Extension deactivated");
+	debounceTimers.forEach((timer) => clearTimeout(timer));
+	console.log('Extension deactivated.');
 }
 
 module.exports = {
 	activate,
-	deactivate
+	deactivate,
 };

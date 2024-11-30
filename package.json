@@ -46,10 +46,19 @@
   ],
   "main": "./extension.js",
   "contributes": {
+    "configuration": {
+      "properties": {
+        "envExample.includeComments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include comments in the generated .env.example file."
+        }
+      }
+    },
     "commands": [
       {
-        "command": "env-example-generator",
-        "title": ".env.example Generator"
+        "command": "envExample.toggleComments",
+        "title": "Toggle Include Comments in .env.example"
       }
     ]
   },
